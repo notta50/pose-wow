@@ -1,12 +1,26 @@
 # Pose WOW!
 
-AIを使ったリアルタイムポーズ検出アプリケーション。カメラに向かって両手を上げると「WOW!」の吹き出しが表示されます。
+AIを使ったリアルタイムポーズ検出アプリケーション。カメラに向かってポーズを取ると、以下のフィードバックがリアルタイムに表示されます：
+
+- 両手を上げる → 「WOW!」
+- 右手のみ上げる → 「Yeah!」
+- 左手のみ上げる → 「ブー！」（否定）
+- **2人で両手を上げる → 「WOWバトル！」スコアで勝負！** 🎮
 
 ## 機能
 
 - **リアルタイムポーズ検出**: MediaPipe AIを使用してカメラ映像から人の姿勢を検出
-- **インタラクティブなフィードバック**: 両手を上げると画面に「WOW!」の吹き出しが表示
-- **視覚的なポーズトラッキング**: 体の主要ポイントと骨格線を色付きで表示
+- **複数人同時検出**: 最大2人まで同時にポーズを検出可能
+- **インタラクティブなフィードバック**:
+  - 誰かが両手を上げると「WOW!」
+  - 誰かが右手のみ上げると「Yeah!」
+  - 誰かが左手のみ上げると「ブー！」（否定）
+- **WOWバトルモード** 🆕:
+  - 2人で同時に両手を上げると自動的にバトル開始
+  - WOW度（0-100点）をリアルタイム計算
+  - 3秒間キープで勝負判定
+  - 手の高さ、対称性、姿勢の安定性で総合評価
+- **視覚的なポーズトラッキング**: 体の主要ポイントと骨格線を色付きで表示（複数人は異なる色で区別）
 - **レスポンシブデザイン**: デスクトップとモバイルの両方に対応
 
 ## 技術スタック
@@ -29,20 +43,20 @@ AIを使ったリアルタイムポーズ検出アプリケーション。カメ
 
 ### 1. リポジトリのクローン
 
-```bash
+```powershell
 git clone <repository-url>
 cd <project-directory>
 ```
 
 ### 2. 依存関係のインストール
 
-```bash
+```powershell
 npm install
 ```
 
 ### 3. 開発サーバーの起動
 
-```bash
+```powershell
 npm run dev
 ```
 
@@ -78,7 +92,7 @@ npm run dev
 
 ### ビルド（本番環境用）
 
-```bash
+```powershell
 npm run build
 ```
 
@@ -86,19 +100,19 @@ npm run build
 
 ### プレビュー（ビルド後の確認）
 
-```bash
+```powershell
 npm run preview
 ```
 
 ### リント（コード品質チェック）
 
-```bash
+```powershell
 npm run lint
 ```
 
 ### 型チェック
 
-```bash
+```powershell
 npm run typecheck
 ```
 
@@ -120,29 +134,77 @@ project/
 
 ## 使い方
 
+### 基本操作
+
 1. アプリケーションを開くとカメラ映像が表示されます
-2. カメラの前に立ち、体全体が映るようにします
-3. 両手を頭より上に上げます
-4. 両手が検出されると「WOW!」の吹き出しがアニメーション表示されます
-5. 手を下ろすと吹き出しが消えます
+2. カメラの前に立ち、体全体が映るようにします（複数人でも可能）
+3. 以下のいずれかのポーズを試します
+   - 両手を頭より上に上げる → 画面中央に「WOW!」
+   - 右手だけ頭より上に上げる → 右上に「Yeah!」
+   - 左手だけ頭より上に上げる → 左上に「ブー！」
+4. 手を下ろすと吹き出しが消えます
 
-## ポーズ検出の仕組み
+### WOWバトルモード 🎮
 
-このアプリは以下の判定基準で「両手を上げた」と認識します：
+1. **2人でカメラの前に立つ**
+2. **両手を同時に頭より上に上げる**
+3. **リアルタイムでWOW度（0-100点）が表示されます**
+   - 画面左上と右上にそれぞれのスコアが表示
+   - キープ時間もカウント表示
+4. **3秒間キープすると勝負判定！**
+   - 自動的にバトル画面が表示
+   - スコアが高い方が勝者（トロフィー🏆付き）
+5. **手を下ろすとリセット** - 何度でも挑戦可能
 
-- 左手首が左肩より上にある
-- 右手首が右肩より上にある
-- 両方の手首が鼻の位置より上にある（またはほぼ同じ高さ）
+#### WOW度の計算方法
+
+- **手の高さ (40点)**: 両手が頭上にどれだけ高く上がっているか
+- **対称性 (30点)**: 左右の手の高さがどれだけ揃っているか
+- **姿勢の安定性 (30点)**: 体の中心軸がまっすぐか
+
+**複数人での使用**: 最大2人まで同時に検出可能。いずれかの人が該当ポーズをしていれば反応します。各人物は異なる色（1人目: マゼンタ/シアン、2人目: 緑/黄色）で骨格が表示されます。## ポーズ検出の仕組み
+
+このアプリは以下の判定基準でポーズを認識します（画像座標系: 上へいくほど y が小さい）：
+
+- 両手を上げた（WOW!）
+  - 左手首が左肩より上
+  - 右手首が右肩より上
+  - 両方の手首が鼻の位置より上（y < nose.y + 0.1）
+- 右手のみを上げた（Yeah!）
+  - 右手首が右肩より上 かつ 鼻より上
+  - 左手首は肩・鼻より上ではない
+- 左手のみを上げた（ブー！）
+  - 左手首が左肩より上 かつ 鼻より上
+  - 右手首は肩・鼻より上ではない
 
 ## カスタマイズ
 
-### 検出感度の調整
+### 検出人数の変更
 
-`src/components/PoseDetector.tsx` の `checkBothHandsRaised` 関数内で、以下の値を調整できます：
+`src/components/PoseDetector.tsx` の `numPoses` を変更することで、同時検出する人数を調整できます：
 
 ```typescript
-// 手首が鼻の位置より0.1だけ下でも許容する
+numPoses: 2, // 最大2人まで同時検出
+```
+
+**注意**: 人数を増やすほど処理負荷が高くなります。3人以上にする場合は、パフォーマンスに注意してください。
+
+### 検出感度の調整
+
+`src/components/PoseDetector.tsx` の各判定関数で、鼻の高さに対する許容値（0.1）を調整できます：
+
+```typescript
+// 両手（checkBothHandsRaised）
 const leftHandRaised = leftWrist.y < leftShoulder.y && leftWrist.y < nose.y + 0.1;
+const rightHandRaised = rightWrist.y < rightShoulder.y && rightWrist.y < nose.y + 0.1;
+
+// 右手のみ（checkRightHandRaised）
+const rightHandRaised = rightWrist.y < rightShoulder.y && rightWrist.y < nose.y + 0.1;
+const leftHandRaised = leftWrist.y < leftShoulder.y && leftWrist.y < nose.y + 0.1; // ← falseのときのみ「Yeah!」
+
+// 左手のみ（checkLeftHandRaised）
+const leftHandRaised = leftWrist.y < leftShoulder.y && leftWrist.y < nose.y + 0.1;
+const rightHandRaised = rightWrist.y < rightShoulder.y && rightWrist.y < nose.y + 0.1; // ← falseのときのみ「ブー！」
 ```
 
 この `0.1` の値を増やすと検出が緩くなり、減らすと厳しくなります。
@@ -159,18 +221,14 @@ const leftHandRaised = leftWrist.y < leftShoulder.y && leftWrist.y < nose.y + 0.
 
 ### 色の変更
 
-ポーズのランドマーク色を変更するには：
+各人物のポーズのランドマーク色を変更するには、`src/components/PoseDetector.tsx` の `colors` 配列を編集：
 
 ```typescript
-drawer.drawLandmarks(lm, {
-  color: '#FF00FF',  // ピンク色
-  lineWidth: 2,
-});
-
-drawer.drawConnectors(lm, PoseLandmarker.POSE_CONNECTIONS, {
-  color: '#00FFFF',  // シアン色
-  lineWidth: 3,
-});
+const colors = [
+  { landmark: '#FF00FF', connection: '#00FFFF' }, // 1人目
+  { landmark: '#00FF00', connection: '#FFFF00' }, // 2人目
+  // 必要に応じて追加
+];
 ```
 
 ## パフォーマンス
@@ -204,7 +262,11 @@ drawer.drawConnectors(lm, PoseLandmarker.POSE_CONNECTIONS, {
 
 ## 今後の拡張予定
 
-- [ ] 複数のポーズパターン認識
+- [x] 複数のポーズパターン認識
+- [x] WOWバトルモード
+- [ ] 効果音の追加
+- [ ] バトル履歴の記録
+- [ ] カウントダウン演出
 - [ ] ポーズのカスタマイズ機能
 - [ ] ゲームモードの追加
 - [ ] ポーズデータの記録と分析
