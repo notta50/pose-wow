@@ -1,13 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { PoseLandmarker, FilesetResolver, DrawingUtils } from '@mediapipe/tasks-vision';
 import { Loader2 } from 'lucide-react';
+import { LaserEffect } from './LaserEffect';
+import { soundGenerator } from '../utils/audioUtils';
 
 const PoseDetector = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>('');
-  const [showWow, setShowWow] = useState(false);
+  const [rightHandRaised, setRightHandRaised] = useState(false);
+  const [laserPosition, setLaserPosition] = useState({ x: 0, y: 0 });
+  const previousRightHandRaised = useRef(false);
 
   useEffect(() => {
     let landmarker: PoseLandmarker | undefined;
@@ -75,8 +79,44 @@ const PoseDetector = () => {
               lineWidth: 3,
             });
 
-            const handsRaised = checkBothHandsRaised(lm);
-            setShowWow(handsRaised);
+            // 右手を突き上げた場合の光線エフェクト
+            const rightHandUp = checkRightHandRaised(lm);
+            
+            // 新しく光線が発射された時のみ効果音を再生
+            if (rightHandUp && !previousRightHandRaised.current) {
+              soundGenerator.playLaserSound().catch(console.warn);
+            }
+            
+            previousRightHandRaised.current = rightHandUp;
+            setRightHandRaised(rightHandUp);
+
+            // 右手中指の位置を推定（画面座標に変換）
+            if (rightHandUp && lm[16] && lm[14] && lm[12]) {
+              const rightWrist = lm[16];
+              const rightElbow = lm[14];
+              const rightShoulder = lm[12];
+              
+              // 手首から肘への方向ベクトルを計算
+              const wristToElbowX = rightWrist.x - rightElbow.x;
+              const wristToElbowY = rightWrist.y - rightElbow.y;
+              
+              // 肘から肩への方向も考慮してより正確な腕の向きを計算
+              const elbowToShoulderX = rightElbow.x - rightShoulder.x;
+              const elbowToShoulderY = rightElbow.y - rightShoulder.y;
+              
+              // 平均的な腕の方向を計算
+              const avgDirectionX = (wristToElbowX + elbowToShoulderX) * 0.5;
+              const avgDirectionY = (wristToElbowY + elbowToShoulderY) * 0.5;
+              
+              // 手首から指先方向に延長して中指の位置を推定（より長めに延長）
+              const fingerTipX = (rightWrist.x + avgDirectionX * 0.4) * canvas.width;
+              const fingerTipY = (rightWrist.y + avgDirectionY * 0.4) * canvas.height;
+              
+              setLaserPosition({
+                x: fingerTipX,
+                y: fingerTipY
+              });
+            }
           }
 
           requestAnimationFrame(detect);
@@ -90,29 +130,21 @@ const PoseDetector = () => {
       }
     };
 
-    const checkBothHandsRaised = (landmarks: any[]): boolean => {
-      const LEFT_WRIST = 15;
+    const checkRightHandRaised = (landmarks: any[]): boolean => {
       const RIGHT_WRIST = 16;
-      const LEFT_SHOULDER = 11;
       const RIGHT_SHOULDER = 12;
       const NOSE = 0;
 
-      if (!landmarks[LEFT_WRIST] || !landmarks[RIGHT_WRIST] ||
-          !landmarks[LEFT_SHOULDER] || !landmarks[RIGHT_SHOULDER] ||
-          !landmarks[NOSE]) {
+      if (!landmarks[RIGHT_WRIST] || !landmarks[RIGHT_SHOULDER] || !landmarks[NOSE]) {
         return false;
       }
 
-      const leftWrist = landmarks[LEFT_WRIST];
       const rightWrist = landmarks[RIGHT_WRIST];
-      const leftShoulder = landmarks[LEFT_SHOULDER];
       const rightShoulder = landmarks[RIGHT_SHOULDER];
       const nose = landmarks[NOSE];
 
-      const leftHandRaised = leftWrist.y < leftShoulder.y && leftWrist.y < nose.y + 0.1;
-      const rightHandRaised = rightWrist.y < rightShoulder.y && rightWrist.y < nose.y + 0.1;
-
-      return leftHandRaised && rightHandRaised;
+      // 右手首が右肩より上で、鼻の位置より少し上にある（より厳密な条件）
+      return rightWrist.y < rightShoulder.y && rightWrist.y < nose.y - 0.05;
     };
 
     init();
@@ -123,8 +155,15 @@ const PoseDetector = () => {
     };
   }, []);
 
+  // AudioContextの初期化（ブラウザのautoplay制限対策）
+  const handleUserInteraction = () => {
+    soundGenerator.playBeepSound().catch(() => {
+      // 初期化のためのサイレント再生（エラーは無視）
+    });
+  };
+
   return (
-    <div className="relative">
+    <div className="relative" onClick={handleUserInteraction}>
       {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-slate-800/50 rounded-2xl backdrop-blur-sm z-10">
           <div className="flex flex-col items-center gap-3">
@@ -161,25 +200,24 @@ const PoseDetector = () => {
           style={{ transform: 'scaleX(-1)' }}
         />
 
-        {showWow && (
-          <div className="absolute top-8 left-1/2 -translate-x-1/2 animate-bounce">
-            <div className="relative">
-              <div className="bg-gradient-to-r from-yellow-400 via-orange-400 to-pink-500 text-white text-6xl font-black px-12 py-6 rounded-full shadow-2xl border-4 border-white transform rotate-[-5deg]">
-                WOW!
-              </div>
-              <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[20px] border-l-transparent border-r-[20px] border-r-transparent border-t-[25px] border-t-white"></div>
-            </div>
-          </div>
-        )}
+        {/* 光線エフェクト */}
+        <LaserEffect 
+          startX={laserPosition.x}
+          startY={laserPosition.y}
+          isActive={rightHandRaised}
+        />
       </div>
 
       <div className="mt-6 text-center">
         <p className="text-slate-400 text-sm">
-          {showWow ? (
-            <span className="text-green-400 font-semibold text-lg">Great pose! Keep it up!</span>
+          {rightHandRaised ? (
+            <span className="text-purple-400 font-semibold text-lg">✨🔊 Laser beam activated! 🔊✨</span>
           ) : (
-            <span>Raise both hands above your head to trigger the effect</span>
+            <span>Raise your right hand high to activate the laser beam!</span>
           )}
+        </p>
+        <p className="text-slate-500 text-xs mt-2">
+          💡 Click anywhere on the screen to enable sound effects
         </p>
       </div>
     </div>
