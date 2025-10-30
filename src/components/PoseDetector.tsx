@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { PoseLandmarker, FilesetResolver, DrawingUtils } from '@mediapipe/tasks-vision';
+import { PoseLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
 import { Loader2 } from 'lucide-react';
 import { LaserEffect } from './LaserEffect';
 import { soundGenerator } from '../utils/audioUtils';
@@ -53,7 +53,6 @@ const PoseDetector = () => {
 
         const canvas = canvasRef.current!;
         const ctx2d = canvas.getContext('2d')!;
-        const drawer = new DrawingUtils(ctx2d);
 
         const detect = () => {
           if (!video || !landmarker || video.readyState < 2) {
@@ -69,15 +68,6 @@ const PoseDetector = () => {
 
           if (res.landmarks.length) {
             const lm = res.landmarks[0];
-
-            drawer.drawLandmarks(lm, {
-              color: '#FF00FF',
-              lineWidth: 2,
-            });
-            drawer.drawConnectors(lm, PoseLandmarker.POSE_CONNECTIONS, {
-              color: '#00FFFF',
-              lineWidth: 3,
-            });
 
             // 右手を突き上げた場合の光線エフェクト
             const rightHandUp = checkRightHandRaised(lm);
